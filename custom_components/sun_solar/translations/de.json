@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sun Solar Battery ETA",
+        "description": "Wähle die Entities aus, mit denen berechnet wird, wann der Akku voll ist.",
+        "data": {
+          "power_entity": "PV-/Ladeleistung-Sensor",
+          "battery_soc_entity": "Akku-Ladestand-Sensor (%)",
+          "battery_remaining_entity": "Nutzbare Restkapazität-Sensor (kWh)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sun Solar Battery ETA neu konfigurieren",
+        "data": {
+          "power_entity": "PV-/Ladeleistung-Sensor",
+          "battery_soc_entity": "Akku-Ladestand-Sensor (%)",
+          "battery_remaining_entity": "Nutzbare Restkapazität-Sensor (kWh)"
+        }
+      }
+    }
+  }
+}
