@@ -3,11 +3,9 @@
     "step": {
       "user": {
         "title": "Sun Solar Battery ETA",
-        "description": "Select the entities used to calculate when the battery will be full.",
+        "description": "Select the battery state-of-charge sensor used to calculate when the battery will be full.",
         "data": {
-          "power_entity": "PV/charging power sensor",
-          "battery_soc_entity": "Battery state of charge sensor (%)",
-          "battery_capacity_kwh": "Battery usable capacity (kWh, fixed value - BMS already normalizes SOC against current capacity)"
+          "battery_soc_entity": "Battery state of charge sensor (%)"
         }
       }
     }
@@ -17,9 +15,7 @@
       "init": {
         "title": "Reconfigure Sun Solar Battery ETA",
         "data": {
-          "power_entity": "PV/charging power sensor",
-          "battery_soc_entity": "Battery state of charge sensor (%)",
-          "battery_capacity_kwh": "Battery usable capacity (kWh, fixed value - BMS already normalizes SOC against current capacity)"
+          "battery_soc_entity": "Battery state of charge sensor (%)"
         }
       }
     }

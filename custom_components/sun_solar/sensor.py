@@ -9,12 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (
-    ATTR_AVERAGE_POWER_W,
-    ATTR_REMAINING_TO_CHARGE_KWH,
-    ATTR_STATUS,
-    DOMAIN,
-)
+from .const import ATTR_SAMPLES_IN_WINDOW, ATTR_SOC_RATE_PERCENT_PER_HOUR, ATTR_STATUS, DOMAIN
 from .coordinator import SunSolarCoordinator
 
 
@@ -30,6 +25,11 @@ async def async_setup_entry(
 
 class SunSolarBatteryEtaSensor(CoordinatorEntity[SunSolarCoordinator], SensorEntity):
     """Timestamp entity: when the battery is expected to be full.
+
+    Berechnung: lineare Regression der SOC-Steigung (%/Minute) über die
+    letzten 15 Minuten, linear auf 100% hochgerechnet. Kein Umweg über
+    Leistung oder Kapazität - der SOC-Sensor liefert die nötige Information
+    direkt.
 
     Reusable in automations, e.g.:
       trigger:
@@ -65,14 +65,10 @@ class SunSolarBatteryEtaSensor(CoordinatorEntity[SunSolarCoordinator], SensorEnt
             return {}
         return {
             ATTR_STATUS: data.status,
-            ATTR_AVERAGE_POWER_W: (
-                round(data.average_power_w, 1)
-                if data.average_power_w is not None
+            ATTR_SOC_RATE_PERCENT_PER_HOUR: (
+                round(data.soc_rate_percent_per_hour, 2)
+                if data.soc_rate_percent_per_hour is not None
                 else None
             ),
-            ATTR_REMAINING_TO_CHARGE_KWH: (
-                round(data.remaining_to_charge_kwh, 3)
-                if data.remaining_to_charge_kwh is not None
-                else None
-            ),
+            ATTR_SAMPLES_IN_WINDOW: data.samples_in_window,
         }

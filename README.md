@@ -12,15 +12,21 @@ mit GUI-Konfiguration (Config Flow) und einer wiederverwendbaren Entity.
 
 Erzeugt genau eine Entity: `sensor.sun_solar_battery_full_eta`
 (`device_class: timestamp`). Der Wert ist der voraussichtliche Zeitpunkt,
-zu dem der Akku voll geladen ist, berechnet aus dem 15-Minuten-Ø der
-Ladeleistung – gleiche Kernlogik wie vorher im JS, nur jetzt serverseitig
-in Python und als echte, in Automationen nutzbare Entity statt als
-String in einer Karte.
+zu dem der Akku voll geladen ist, berechnet per linearer Regression über
+die SOC-Änderung (%/Minute) der letzten 15 Minuten, linear auf 100%
+hochgerechnet. Keine Leistungs- oder Kapazitätsangabe nötig – nur der
+SOC-Sensor.
+
+**Bekannte Einschränkung:** Ladekurven sind in der CV-Phase (letzte
+~5-10% vor voll) nicht mehr linear, der Ladestrom tapert ab. Die lineare
+Hochrechnung wird in diesem Bereich tendenziell zu optimistisch sein.
 
 Zusatz-Attribute der Entity:
-- `status`: `full` | `charging` | `no_production` | `unavailable`
-- `average_power_w`: aktuell verwendeter 15-Min-Leistungsdurchschnitt
-- `remaining_to_charge_kwh`: noch zu ladende Energiemenge
+- `status`: `full` | `charging` | `not_charging` | `unavailable`
+- `soc_rate_percent_per_hour`: aktuell gemessene SOC-Änderungsrate
+- `samples_in_window`: Anzahl der SOC-Messpunkte im 15-Minuten-Fenster
+  (niedrige Werte deuten auf einen grob auflösenden/selten aktualisierenden
+  SOC-Sensor hin, was die ETA wackeliger macht)
 
 ## Installation über HACS
 
@@ -28,15 +34,10 @@ Zusatz-Attribute der Entity:
 2. Repository-URL `https://github.com/jaal2001/sun_solar` eintragen, Kategorie **Integration** wählen
 3. "Sun Solar Battery ETA" installieren, Home Assistant neu starten
 4. Einstellungen → Geräte & Dienste → Integration hinzufügen → "Sun Solar Battery ETA"
-5. Im Dialog eintragen:
-   - PV-/Ladeleistung-Sensor (W oder kW)
-   - Akku-Ladestand-Sensor (%)
-   - Nutzbare Akku-Kapazität in kWh (fester Zahlenwert, keine Entity - der
-     SOC deines BMS berücksichtigt SoH-Alterung bereits selbst, deshalb
-     reicht hier ein einmalig eingetragener Kapazitätswert)
+5. Im Dialog den Akku-Ladestand-Sensor (%) auswählen
 
-Über den "Konfigurieren"-Button auf der Integrationskachel lassen sich die
-Werte jederzeit ohne YAML nachträglich ändern.
+Über den "Konfigurieren"-Button auf der Integrationskachel lässt sich der
+Sensor jederzeit ohne YAML nachträglich ändern.
 
 ## Anzeige im Dashboard
 

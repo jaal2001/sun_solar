@@ -8,13 +8,7 @@ from homeassistant import config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import selector
 
-from .const import (
-    CONF_BATTERY_CAPACITY_KWH,
-    CONF_BATTERY_SOC_ENTITY,
-    CONF_POWER_ENTITY,
-    DEFAULT_NAME,
-    DOMAIN,
-)
+from .const import CONF_BATTERY_SOC_ENTITY, DEFAULT_NAME, DOMAIN
 
 
 def _build_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -22,27 +16,10 @@ def _build_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
-                CONF_POWER_ENTITY, default=defaults.get(CONF_POWER_ENTITY)
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="sensor")
-            ),
-            vol.Required(
                 CONF_BATTERY_SOC_ENTITY,
                 default=defaults.get(CONF_BATTERY_SOC_ENTITY),
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="sensor")
-            ),
-            vol.Required(
-                CONF_BATTERY_CAPACITY_KWH,
-                default=defaults.get(CONF_BATTERY_CAPACITY_KWH, 10.0),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0.1,
-                    max=1000,
-                    step=0.1,
-                    unit_of_measurement="kWh",
-                    mode=selector.NumberSelectorMode.BOX,
-                )
             ),
         }
     )
