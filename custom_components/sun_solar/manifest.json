@@ -1,12 +1,12 @@
 {
   "domain": "sun_solar",
   "name": "Sun Solar Battery ETA",
-  "version": "0.1.0",
+  "codeowners": ["@jaal2001"],
   "config_flow": true,
   "documentation": "https://github.com/jaal2001/sun_solar",
-  "issue_tracker": "https://github.com/jaal2001/sun_solar/issues",
-  "codeowners": ["@jaal2001"],
   "integration_type": "helper",
   "iot_class": "calculated",
-  "requirements": []
+  "issue_tracker": "https://github.com/jaal2001/sun_solar/issues",
+  "requirements": [],
+  "version": "0.1.0"
 }
