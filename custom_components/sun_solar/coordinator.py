@@ -5,6 +5,7 @@ import logging
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -13,7 +14,7 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     AVERAGE_WINDOW_MINUTES,
-    CONF_BATTERY_REMAINING_ENTITY,
+    CONF_BATTERY_CAPACITY_KWH,
     CONF_BATTERY_SOC_ENTITY,
     CONF_POWER_ENTITY,
     DOMAIN,
@@ -69,7 +70,7 @@ class SunSolarCoordinator(DataUpdateCoordinator[SunSolarData]):
         # deque of (timestamp, watts)
         self._power_samples: deque[tuple[datetime, float]] = deque()
 
-    def _config(self, key: str) -> str:
+    def _config(self, key: str) -> Any:
         # Options override the initial data set at config_flow time,
         # this is what makes the "Configure" GUI dialog actually take effect.
         return self._entry.options.get(key, self._entry.data.get(key))
@@ -114,15 +115,13 @@ class SunSolarCoordinator(DataUpdateCoordinator[SunSolarData]):
                 None,
             )
         )
-        remaining_kwh = _to_float(
-            getattr(
-                self.hass.states.get(self._config(CONF_BATTERY_REMAINING_ENTITY)),
-                "state",
-                None,
-            )
-        )
+        # Feste, in der GUI konfigurierte Kapazität (kWh) statt einer Entity -
+        # der SOC kommt bereits normiert vom BMS, SoH-Alterung wird dort
+        # bereits eingerechnet und muss hier nicht nochmal berücksichtigt
+        # werden (siehe Diskussion vom 11.07.2026).
+        capacity_kwh = _to_float(self._config(CONF_BATTERY_CAPACITY_KWH))
 
-        if soc is None or remaining_kwh is None:
+        if soc is None or capacity_kwh is None:
             return SunSolarData(
                 eta=None,
                 status=STATUS_UNAVAILABLE,
@@ -138,7 +137,7 @@ class SunSolarCoordinator(DataUpdateCoordinator[SunSolarData]):
                 remaining_to_charge_kwh=0.0,
             )
 
-        to_charge_kwh = remaining_kwh * (1 - soc / 100)
+        to_charge_kwh = capacity_kwh * (1 - soc / 100)
         avg_w = self._average_power_w()
 
         if avg_w is None or avg_w < MIN_POWER_FOR_ETA_W:

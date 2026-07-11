@@ -6,7 +6,7 @@ DEFAULT_NAME = "Sun Solar"
 
 CONF_POWER_ENTITY = "power_entity"
 CONF_BATTERY_SOC_ENTITY = "battery_soc_entity"
-CONF_BATTERY_REMAINING_ENTITY = "battery_remaining_entity"
+CONF_BATTERY_CAPACITY_KWH = "battery_capacity_kwh"
 
 # Rolling window used to average charging power, mirrors the 15-minute
 # window used in the original Lovelace card.

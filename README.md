@@ -28,13 +28,15 @@ Zusatz-Attribute der Entity:
 2. Repository-URL `https://github.com/jaal2001/sun_solar` eintragen, Kategorie **Integration** wählen
 3. "Sun Solar Battery ETA" installieren, Home Assistant neu starten
 4. Einstellungen → Geräte & Dienste → Integration hinzufügen → "Sun Solar Battery ETA"
-5. Im Dialog die drei Quell-Entities auswählen:
+5. Im Dialog eintragen:
    - PV-/Ladeleistung-Sensor (W oder kW)
    - Akku-Ladestand-Sensor (%)
-   - Nutzbare Restkapazität-Sensor (kWh)
+   - Nutzbare Akku-Kapazität in kWh (fester Zahlenwert, keine Entity - der
+     SOC deines BMS berücksichtigt SoH-Alterung bereits selbst, deshalb
+     reicht hier ein einmalig eingetragener Kapazitätswert)
 
 Über den "Konfigurieren"-Button auf der Integrationskachel lassen sich die
-drei Entities jederzeit ohne YAML nachträglich ändern.
+Werte jederzeit ohne YAML nachträglich ändern.
 
 ## Anzeige im Dashboard
 

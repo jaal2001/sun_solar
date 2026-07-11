@@ -7,7 +7,7 @@
         "data": {
           "power_entity": "PV-/Ladeleistung-Sensor",
           "battery_soc_entity": "Akku-Ladestand-Sensor (%)",
-          "battery_remaining_entity": "Nutzbare Restkapazität-Sensor (kWh)"
+          "battery_capacity_kwh": "Nutzbare Akku-Kapazität (kWh, fester Wert - SOC vom BMS berücksichtigt SoH bereits)"
         }
       }
     }
@@ -19,7 +19,7 @@
         "data": {
           "power_entity": "PV-/Ladeleistung-Sensor",
           "battery_soc_entity": "Akku-Ladestand-Sensor (%)",
-          "battery_remaining_entity": "Nutzbare Restkapazität-Sensor (kWh)"
+          "battery_capacity_kwh": "Nutzbare Akku-Kapazität (kWh, fester Wert - SOC vom BMS berücksichtigt SoH bereits)"
         }
       }
     }
