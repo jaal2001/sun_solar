@@ -24,6 +24,11 @@ UPDATE_INTERVAL_SECONDS = 30
 ATTR_STATUS = "status"
 ATTR_SOC_RATE_PERCENT_PER_HOUR = "soc_rate_percent_per_hour"
 ATTR_SAMPLES_IN_WINDOW = "samples_in_window"
+ATTR_ETA_DISPLAY = "eta_display"
+
+# Fallback-Texte für eta_display, wenn kein Zeitstempel vorliegt.
+DISPLAY_TEXT_FULL = "voll"
+DISPLAY_TEXT_UNKNOWN = "--:--"
 
 STATUS_FULL = "full"
 STATUS_CHARGING = "charging"

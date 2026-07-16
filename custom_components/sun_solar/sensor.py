@@ -8,8 +8,18 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
-from .const import ATTR_SAMPLES_IN_WINDOW, ATTR_SOC_RATE_PERCENT_PER_HOUR, ATTR_STATUS, DOMAIN
+from .const import (
+    ATTR_ETA_DISPLAY,
+    ATTR_SAMPLES_IN_WINDOW,
+    ATTR_SOC_RATE_PERCENT_PER_HOUR,
+    ATTR_STATUS,
+    DISPLAY_TEXT_FULL,
+    DISPLAY_TEXT_UNKNOWN,
+    DOMAIN,
+    STATUS_FULL,
+)
 from .coordinator import SunSolarCoordinator
 
 
@@ -59,10 +69,28 @@ class SunSolarBatteryEtaSensor(CoordinatorEntity[SunSolarCoordinator], SensorEnt
         return self.coordinator.data.eta if self.coordinator.data else None
 
     @property
+    def _eta_display(self) -> str:
+        """Fertig formatierter Anzeige-String, z.B. für ESPHome-Displays.
+
+        Rechnet den UTC-Zeitstempel in die in HA konfigurierte Zeitzone um
+        (dt_util.as_local berücksichtigt DST automatisch), damit auf der
+        Empfängerseite (ESPHome, Dashboard, ...) keine eigene
+        Zeitzonen-Logik mehr nötig ist.
+        """
+        data = self.coordinator.data
+        if data is None:
+            return DISPLAY_TEXT_UNKNOWN
+        if data.status == STATUS_FULL:
+            return DISPLAY_TEXT_FULL
+        if data.eta is None:
+            return DISPLAY_TEXT_UNKNOWN
+        return dt_util.as_local(data.eta).strftime("%H:%M")
+
+    @property
     def extra_state_attributes(self) -> dict:
         data = self.coordinator.data
         if data is None:
-            return {}
+            return {ATTR_ETA_DISPLAY: DISPLAY_TEXT_UNKNOWN}
         return {
             ATTR_STATUS: data.status,
             ATTR_SOC_RATE_PERCENT_PER_HOUR: (
@@ -71,4 +99,5 @@ class SunSolarBatteryEtaSensor(CoordinatorEntity[SunSolarCoordinator], SensorEnt
                 else None
             ),
             ATTR_SAMPLES_IN_WINDOW: data.samples_in_window,
+            ATTR_ETA_DISPLAY: self._eta_display,
         }
