@@ -6,6 +6,9 @@ DEFAULT_NAME = "Sun Solar"
 
 CONF_BATTERY_SOC_ENTITY = "battery_soc_entity"
 
+# Core-Entity, immer vorhanden, keine eigene Konfiguration nötig.
+SUN_ENTITY_ID = "sun.sun"
+
 # Window over which the SOC slope (%/Minute) is computed via lineare
 # Regression, um einzelne verrauschte/quantisierte SOC-Sprünge zu glätten.
 SOC_RATE_WINDOW_MINUTES = 15
@@ -34,3 +37,7 @@ STATUS_FULL = "full"
 STATUS_CHARGING = "charging"
 STATUS_NOT_CHARGING = "not_charging"
 STATUS_UNAVAILABLE = "unavailable"
+# Lädt gerade (positive SOC-Steigung), aber die Hochrechnung landet nach
+# dem nächsten Sonnenuntergang - PV-Leistung wird vorher wegbrechen,
+# die lineare Extrapolation ist dann nicht mehr aussagekräftig.
+STATUS_CHARGING_PAST_SUNSET = "charging_past_sunset"

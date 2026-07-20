@@ -22,11 +22,22 @@ SOC-Sensor.
 Hochrechnung wird in diesem Bereich tendenziell zu optimistisch sein.
 
 Zusatz-Attribute der Entity:
-- `status`: `full` | `charging` | `not_charging` | `unavailable`
+- `status`: `full` | `charging` | `charging_past_sunset` | `not_charging` | `unavailable`
 - `soc_rate_percent_per_hour`: aktuell gemessene SOC-Änderungsrate
 - `samples_in_window`: Anzahl der SOC-Messpunkte im 15-Minuten-Fenster
   (niedrige Werte deuten auf einen grob auflösenden/selten aktualisierenden
   SOC-Sensor hin, was die ETA wackeliger macht)
+- `eta_display`: fertig formatierter String für Anzeigen ohne eigene
+  Zeitzonen-/Statuslogik (z. B. ESPHome-Displays): `"14:32"`, `"voll"`
+  oder `"--:--"` (auch im Fall `charging_past_sunset`, bewusst identisch
+  zu `not_charging` gehalten - Platzgrund auf kleinen Displays)
+
+**Sonnenuntergangs-Grenze:** Liegt die hochgerechnete ETA nach dem
+nächsten Sonnenuntergang (`sun.sun` → `next_setting`), wird sie
+unterdrückt (`status: charging_past_sunset`, State `unbekannt`) statt
+eine ETA anzuzeigen, die die PV-Integration nie erreichen wird, weil die
+Sonne vorher untergeht. `sun.sun` ist eine fixe HA-Core-Entity, dafür ist
+keine eigene Konfiguration nötig.
 
 ## Installation über HACS
 

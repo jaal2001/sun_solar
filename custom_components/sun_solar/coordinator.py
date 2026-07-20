@@ -24,9 +24,11 @@ from .const import (
     SOC_FULL_THRESHOLD,
     SOC_RATE_WINDOW_MINUTES,
     STATUS_CHARGING,
+    STATUS_CHARGING_PAST_SUNSET,
     STATUS_FULL,
     STATUS_NOT_CHARGING,
     STATUS_UNAVAILABLE,
+    SUN_ENTITY_ID,
     UPDATE_INTERVAL_SECONDS,
 )
 
@@ -101,6 +103,16 @@ class SunSolarCoordinator(DataUpdateCoordinator[SunSolarData]):
             return None
         return _to_float(state.state)
 
+    def _next_sunset(self) -> datetime | None:
+        """Liest sun.sun next_setting - fixe Core-Entity, keine Konfiguration nötig."""
+        sun_state = self.hass.states.get(SUN_ENTITY_ID)
+        if sun_state is None:
+            return None
+        next_setting = sun_state.attributes.get("next_setting")
+        if next_setting is None:
+            return None
+        return dt_util.parse_datetime(next_setting)
+
     def _prune_samples(self, now: datetime) -> None:
         cutoff = now - timedelta(minutes=SOC_RATE_WINDOW_MINUTES)
         while self._soc_samples and self._soc_samples[0][0] < cutoff:
@@ -162,6 +174,16 @@ class SunSolarCoordinator(DataUpdateCoordinator[SunSolarData]):
             )
 
         eta = now + timedelta(minutes=minutes_left)
+
+        sunset = self._next_sunset()
+        if sunset is not None and eta > sunset:
+            return SunSolarData(
+                eta=None,
+                status=STATUS_CHARGING_PAST_SUNSET,
+                soc_rate_percent_per_hour=slope_per_min * 60,
+                samples_in_window=sample_count,
+            )
+
         return SunSolarData(
             eta=eta,
             status=STATUS_CHARGING,
