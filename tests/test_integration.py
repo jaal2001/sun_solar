@@ -297,3 +297,30 @@ async def test_service_card_with_one_battery(hass, freezer):
     await hass.async_block_till_done()
     assert display(hass) == "voll"
     assert hass.states.get(FULL).state == "on"
+
+
+async def test_bundled_card_registration(hass, monkeypatch):
+    """Register one versioned resource and serve the bundled file for all entries."""
+    from pathlib import Path
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, UrlManager
+
+    modules = UrlManager(lambda *_: None, [])
+    hass.data[DATA_EXTRA_MODULE_URL] = modules
+    register = AsyncMock()
+    monkeypatch.setattr(
+        hass, "http", SimpleNamespace(async_register_static_paths=register)
+    )
+    await setup_battery(hass, EAST, "East")
+    await setup_battery(hass, WEST, "West")
+
+    integration = await async_get_integration(hass, DOMAIN)
+    route = "/sun_solar/sun-solar-dashboard-card.js"
+    assert set(modules.urls) == {f"{route}?v={integration.version}"}
+    register.assert_awaited_once()
+    (static_path,) = register.await_args.args[0]
+    assert static_path.url_path == route
+    assert not static_path.cache_headers
+    assert "sun-solar-dashboard-card" in Path(static_path.path).read_text()

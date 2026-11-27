@@ -32,12 +32,22 @@ text_sensor:
     internal: true
 ```
 
+## Dashboard card
+
+Sun Solar automatically registers its bundled **Sun Solar Dashboard** card when the Home Assistant frontend loads. Restart Home Assistant after updating the integration and reload the browser. Open a dashboard in edit mode, add **Sun Solar Dashboard**, and select the PV power sensor. The daily energy and battery SOC sensors are optional. The default forecast sensor is the combined Sun Solar ETA, which also works with just one battery. Select a specific battery's ETA entity to show that battery's forecast instead.
+
+### Migrate from a locally installed card
+
+1. Change the existing card's type from `custom:sun-solar-card` to `custom:sun-solar-dashboard-card`. Keep its `power_entity`, `energy_entity`, `battery_soc_entity`, `title`, `start_hour`, `end_hour`, and `max_power` settings if present.
+2. Remove `battery_remaining_entity` from the card configuration. For the ETA and its graph marker, the card uses the Sun Solar integration's forecast. The PV history is used for the production curve.
+3. After confirming all migrated cards work, remove the old `/local/sun-solar-card.js` dashboard resource. You can then delete the old file from `config/www`. The two card types can coexist during migration.
+
 ## Test the draft in parallel with an existing dashboard
 
 For a draft build, use a separate Home Assistant 2026.11 test instance with its own configuration directory. Use test SOC sensors or simulated values, and configure the location and Sun integration in that instance. Copy the entire `custom_components/sun_solar` directory from a specific commit of `feature/v0.4.0` into the test instance's `config/custom_components/` directory, then restart. Use the GUI to add test batteries and verify the entity states. Avoid having Marketplace manage the same domain in that test instance while using the draft files.
 
-If the production dashboard already uses a local JavaScript card, keep its file, dashboard resources and card configuration in place. A released integration can run alongside the card in the same instance. Each has its own entities or dashboard configuration. Two builds of the integration share the `sun_solar` domain and require separate instances for parallel testing.
+Keep the production dashboard and its local card in place while installing the draft in the separate instance. The draft and published builds share the `sun_solar` domain.
 
 ## Development
 
-Use Python 3.14.2 or newer. Install `requirements-test.txt` into a virtual environment and run `python -m pytest -q`. CI runs the tests against Home Assistant 2026.11.3 and checks both the HACS packaging and Home Assistant metadata. Publishing uses the manually dispatched **Release** workflow on `main` and requires passing validation and a matching manifest version.
+Use Python 3.14.2 or newer. Install `requirements-test.txt` into a virtual environment and run `python -m pytest -q`. Run `node --test tests/frontend/*.test.cjs` for the card tests. CI runs the tests against Home Assistant 2026.11.3 and checks both the HACS packaging and Home Assistant metadata. Publishing uses the manually dispatched **Release** workflow on `main` and requires passing validation and a matching manifest version.
