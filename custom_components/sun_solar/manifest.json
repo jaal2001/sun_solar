@@ -1,7 +1,7 @@
 {
   "domain": "sun_solar",
   "name": "Sun Solar Battery ETA",
-  "after_dependencies": ["frontend", "recorder", "sun"],
+  "after_dependencies": ["frontend", "http", "recorder", "sun"],
   "codeowners": ["@jaal2001"],
   "config_flow": true,
   "documentation": "https://github.com/jaal2001/sun_solar",
