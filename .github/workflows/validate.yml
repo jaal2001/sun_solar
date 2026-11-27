@@ -22,6 +22,7 @@ jobs:
           cache-dependency-path: requirements-test.txt
       - run: pip install -r requirements-test.txt
       - run: python -m pytest -q
+      - run: node --test tests/frontend/*.test.cjs
 
   hacs:
     name: HACS validation

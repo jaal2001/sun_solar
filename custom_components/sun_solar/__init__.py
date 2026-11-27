@@ -1,9 +1,15 @@
 """Set up and unload Sun Solar battery entries."""
 
+from pathlib import Path
+
+from homeassistant.components.frontend import DATA_EXTRA_MODULE_URL, add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.loader import async_get_integration
 
 from .aggregate import AggregateForecast
 from .const import DOMAIN
@@ -12,6 +18,23 @@ from .settings import BatterySettings
 
 SunSolarConfigEntry = ConfigEntry[SunSolarCoordinator]
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+
+
+CARD_URL = "/sun_solar/sun-solar-dashboard-card.js"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Serve and register the bundled dashboard card once."""
+    if DATA_EXTRA_MODULE_URL not in hass.data:
+        return True
+
+    module = Path(__file__).parent / "www" / "sun-solar-dashboard-card.js"
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_URL, str(module), False)]
+    )
+    integration = await async_get_integration(hass, DOMAIN)
+    add_extra_js_url(hass, f"{CARD_URL}?v={integration.version}")
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SunSolarConfigEntry) -> bool:
