@@ -9,8 +9,8 @@ Use an SOC sensor that reports 0–100, with a percent unit or no unit. SOC alon
 1. Open **Settings → Marketplace** in Home Assistant 2026.11 and connect GitHub if prompted.
 2. Add `https://github.com/jaal2001/sun_solar` as a custom repository. The repository uses the HACS integration format.
 3. Download **Sun Solar Battery ETA**, then restart Home Assistant.
-4. Under **Settings → Devices & services → Add integration**, select **Sun Solar Battery ETA** and enter a battery name and its SOC sensor. Repeat for each battery. A source can belong to only one battery.
-5. Use **Reconfigure** to change the name or input sensor. Use **Configure** to set the rolling window (default 15 minutes), full threshold (default 99.5%), and optional Recorder history. History is off by default. If it is unavailable or excluded, live samples are collected automatically.
+4. Under **Settings → Devices & services → Add integration**, select **Sun Solar Battery ETA** and enter a battery name and its SOC sensor. One battery is enough. To add another, repeat this step with a different SOC sensor. Home Assistant groups battery entries under the same Sun Solar integration card.
+5. Open the **Sun Solar Battery ETA** card under **Settings → Devices & services → Integrations**. On the battery entry, use **Reconfigure** to change the name or input sensor. Use **Configure** to set the rolling window (default 15 minutes), full threshold (default 99.5%), and optional Recorder history. Existing batteries keep their settings and entity IDs when upgrading from the Helpers view. History is off by default. If it is unavailable or excluded, live samples are collected automatically.
 
 ## Entities
 

@@ -6,6 +6,7 @@ from homeassistant import config_entries
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import entity_registry as er
+from homeassistant.loader import async_get_integration
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant.common import MockConfigEntry
 from pytest_homeassistant.components.recorder.common import async_wait_recording_done
@@ -274,3 +275,25 @@ async def test_recorder_disabled_or_unavailable(hass, freezer):
     soc(hass, EAST, 61)
     await hass.async_block_till_done()
     assert entry.runtime_data.data.forecast.eta is not None
+
+
+async def test_service_card_with_one_battery(hass, freezer):
+    """Expose the configuration as a service and forecast with one battery."""
+    freezer.move_to(NOW)
+    sun(hass)
+    soc(hass, EAST, 60)
+    entry = await setup_battery(hass, EAST, "East")
+    integration = await async_get_integration(hass, DOMAIN)
+    assert integration.integration_type == "service"
+    assert hass.config_entries.async_entries(DOMAIN) == [entry]
+
+    freezer.tick(timedelta(seconds=30))
+    soc(hass, EAST, 61)
+    await hass.async_block_till_done()
+    assert hass.states.get(ETA).state == "2026-11-27T12:19:45+00:00"
+    assert hass.states.get(FULL).state == "off"
+
+    soc(hass, EAST, 99.5)
+    await hass.async_block_till_done()
+    assert display(hass) == "voll"
+    assert hass.states.get(FULL).state == "on"
