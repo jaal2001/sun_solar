@@ -2,21 +2,59 @@
   "config": {
     "step": {
       "user": {
-        "title": "Sun Solar Battery ETA",
-        "description": "Wähle den Akku-Ladestand-Sensor aus, mit dem berechnet wird, wann der Akku voll ist.",
+        "title": "Solarakku hinzufügen",
+        "description": "Wähle einen Ladestandsensor für einen Akku, der ausschließlich mit Solarstrom geladen wird.",
         "data": {
-          "battery_soc_entity": "Akku-Ladestand-Sensor (%)"
+          "name": "Akkuname",
+          "battery_soc_entity": "Ladestandsensor des Akkus"
+        }
+      },
+      "reconfigure": {
+        "title": "Solarakku neu konfigurieren",
+        "description": "Wähle einen Ladestandsensor für einen Akku, der ausschließlich mit Solarstrom geladen wird.",
+        "data": {
+          "name": "Akkuname",
+          "battery_soc_entity": "Ladestandsensor des Akkus"
         }
       }
+    },
+    "error": {
+      "empty_name": "Gib einen Akkunamen ein.",
+      "invalid_source": "Wähle einen Sensor, der den Ladestand als Prozentwert liefert.",
+      "duplicate_source": "Dieser Ladestandsensor ist bereits konfiguriert."
+    },
+    "abort": {
+      "reconfigure_successful": "Die Akkueinstellungen wurden aktualisiert."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Sun Solar Battery ETA neu konfigurieren",
+        "title": "Prognoseeinstellungen",
         "data": {
-          "battery_soc_entity": "Akku-Ladestand-Sensor (%)"
+          "window_minutes": "Messfenster",
+          "full_threshold": "Vollschwelle",
+          "use_recorder": "Messwerte aus dem Recorder übernehmen"
         }
+      }
+    },
+    "error": {
+      "invalid_window": "Gib eine ganze Zahl zwischen 2 und 120 ein.",
+      "invalid_threshold": "Gib einen Prozentwert zwischen 0,1 und 100 ein."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_full_eta": {
+        "name": "Akku voll um"
+      },
+      "all_batteries_eta": {
+        "name": "Alle Akkus voll um"
+      }
+    },
+    "binary_sensor": {
+      "all_batteries_full": {
+        "name": "Alle Akkus voll"
       }
     }
   }
