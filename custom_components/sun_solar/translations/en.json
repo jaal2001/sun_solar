@@ -2,21 +2,59 @@
   "config": {
     "step": {
       "user": {
-        "title": "Sun Solar Battery ETA",
-        "description": "Select the battery state-of-charge sensor used to calculate when the battery will be full.",
+        "title": "Add a solar battery",
+        "description": "Select a state-of-charge sensor for a battery charged only by solar power.",
         "data": {
-          "battery_soc_entity": "Battery state of charge sensor (%)"
+          "name": "Battery name",
+          "battery_soc_entity": "Battery state-of-charge sensor"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure solar battery",
+        "description": "Select a state-of-charge sensor for a battery charged only by solar power.",
+        "data": {
+          "name": "Battery name",
+          "battery_soc_entity": "Battery state-of-charge sensor"
         }
       }
+    },
+    "error": {
+      "empty_name": "Enter a battery name.",
+      "invalid_source": "Select a sensor that reports SOC as a percentage.",
+      "duplicate_source": "This SOC sensor is already configured."
+    },
+    "abort": {
+      "reconfigure_successful": "Battery settings updated."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Reconfigure Sun Solar Battery ETA",
+        "title": "Forecast settings",
         "data": {
-          "battery_soc_entity": "Battery state of charge sensor (%)"
+          "window_minutes": "SOC window",
+          "full_threshold": "Full threshold",
+          "use_recorder": "Seed samples from Recorder"
         }
+      }
+    },
+    "error": {
+      "invalid_window": "Enter a whole number from 2 to 120.",
+      "invalid_threshold": "Enter a percentage from 0.1 to 100."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_full_eta": {
+        "name": "Battery full ETA"
+      },
+      "all_batteries_eta": {
+        "name": "All batteries ETA"
+      }
+    },
+    "binary_sensor": {
+      "all_batteries_full": {
+        "name": "All batteries full"
       }
     }
   }

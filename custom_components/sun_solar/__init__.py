@@ -1,36 +1,46 @@
-"""The Sun Solar integration."""
-from __future__ import annotations
+"""Set up and unload Sun Solar battery entries."""
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryError
 
+from .aggregate import AggregateForecast
 from .const import DOMAIN
 from .coordinator import SunSolarCoordinator
+from .settings import BatterySettings
 
-PLATFORMS: list[str] = ["sensor"]
+SunSolarConfigEntry = ConfigEntry[SunSolarCoordinator]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Sun Solar from a config entry."""
-    coordinator = SunSolarCoordinator(hass, entry)
+async def async_setup_entry(hass: HomeAssistant, entry: SunSolarConfigEntry) -> bool:
+    """Validate configuration and set up one battery and its state listeners."""
+    try:
+        settings = BatterySettings.from_entry(entry)
+    except ValueError as err:
+        raise ConfigEntryError("Invalid battery settings") from err
+    coordinator = SunSolarCoordinator(hass, entry, settings)
     await coordinator.async_config_entry_first_refresh()
-
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
-
+    entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    shared = hass.data.get(DOMAIN)
+    if shared is None:
+        shared = hass.data[DOMAIN] = AggregateForecast(hass)
+    shared.async_add(entry.entry_id, coordinator)
+    entry.async_on_unload(coordinator.async_add_listener(shared.async_refresh))
+    entry.async_on_unload(coordinator.async_watch_inputs())
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-    return unload_ok
-
-
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload the entry when its options change (GUI 'Configure' dialog)."""
-    await hass.config_entries.async_reload(entry.entry_id)
+async def async_unload_entry(hass: HomeAssistant, entry: SunSolarConfigEntry) -> bool:
+    """Unload both platforms and release shared state if no batteries remain."""
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
+    shared = hass.data[DOMAIN]
+    shared.async_remove(entry.entry_id)
+    if not shared.batteries:
+        shared.async_close()
+        del hass.data[DOMAIN]
+    return True

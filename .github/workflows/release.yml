@@ -1,33 +1,48 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "custom_components/sun_solar/manifest.json"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version in manifest.json (e.g. 0.4.0)
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency: sun-solar-release
 
 jobs:
+  gates:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/validate.yml
+
   release:
+    needs: gates
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
-
-      - name: Version aus manifest.json lesen
-        id: version
-        run: |
-          VERSION=$(python3 -c "import json; print(json.load(open('custom_components/sun_solar/manifest.json'))['version'])")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Release erstellen, falls Tag noch nicht existiert
+      - name: Publish the validated commit
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
-          TAG="v${{ steps.version.outputs.version }}"
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $TAG existiert bereits - manifest.json version wurde vermutlich nicht erhoeht. Ueberspringe."
-          else
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes --target main
+          set -euo pipefail
+          version=$(python3 -c 'import json; print(json.load(open("custom_components/sun_solar/manifest.json"))["version"])')
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$version" != "$REQUESTED_VERSION" ]]; then
+            echo "Requested version must match the stable version in manifest.json." >&2
+            exit 1
           fi
+          if [[ "$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq .commit.sha)" != "$GITHUB_SHA" ]]; then
+            echo "Main moved during validation. Run the workflow against the new head." >&2
+            exit 1
+          fi
+          tag="v$version"
+          if [[ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]]; then
+            echo "Tag $tag already exists." >&2
+            exit 1
+          fi
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --title "$tag" --generate-notes --target "$GITHUB_SHA"

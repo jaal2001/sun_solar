@@ -1,192 +1,208 @@
-"""Coordinator that computes the battery-full ETA for the Sun Solar integration.
+"""Sample each battery's SOC and forecast its solar charge completion."""
 
-Ansatz: statt Leistung + Kapazität zu verrechnen, wird direkt die Steigung
-des SOC (%/Minute) über ein 15-Minuten-Fenster per linearer Regression
-bestimmt und linear bis 100% hochgerechnet. Braucht nur eine Entity.
-"""
-from __future__ import annotations
-
+import asyncio
 import logging
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from functools import partial
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import SUN_EVENT_SUNRISE
+from homeassistant.core import (
+    Event,
+    EventStateChangedData,
+    HomeAssistant,
+    State,
+    callback,
+)
+from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
-from .const import (
-    CONF_BATTERY_SOC_ENTITY,
-    DOMAIN,
-    MIN_SOC_RATE_PERCENT_PER_MIN,
-    SOC_FULL_THRESHOLD,
-    SOC_RATE_WINDOW_MINUTES,
-    STATUS_CHARGING,
-    STATUS_CHARGING_PAST_SUNSET,
-    STATUS_FULL,
-    STATUS_NOT_CHARGING,
-    STATUS_UNAVAILABLE,
-    SUN_ENTITY_ID,
-    UPDATE_INTERVAL_SECONDS,
-)
+from .calculation import Forecast, forecast, slope, valid_soc
+from .const import DOMAIN, SUN_ENTITY_ID, UPDATE_INTERVAL_SECONDS
+from .settings import BatterySettings, is_soc_unit
+
+if TYPE_CHECKING:
+    from .aggregate import AggregateForecast
 
 _LOGGER = logging.getLogger(__name__)
+SAMPLE_INTERVAL = timedelta(seconds=UPDATE_INTERVAL_SECONDS)
 
-_UNUSABLE_STATES = {"unknown", "unavailable", "", None}
 
-
-@dataclass
+@dataclass(frozen=True)
 class SunSolarData:
-    """Result of one coordinator update cycle."""
+    """Forecast and diagnostics for an individual battery."""
 
-    eta: datetime | None
-    status: str
+    forecast: Forecast
     soc_rate_percent_per_hour: float | None
     samples_in_window: int
 
 
-def _to_float(state_value: str | None) -> float | None:
-    if state_value in _UNUSABLE_STATES:
-        return None
-    try:
-        return float(state_value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _linear_regression_slope(points: list[tuple[float, float]]) -> float | None:
-    """Least-squares slope (y per x) über gegebene (x, y)-Punkte.
-
-    Robuster gegen einzelne verrauschte/quantisierte SOC-Werte als eine
-    reine Zwei-Punkt-Differenz (erster/letzter Sample).
-    """
-    n = len(points)
-    if n < 2:
-        return None
-    mean_x = sum(p[0] for p in points) / n
-    mean_y = sum(p[1] for p in points) / n
-    numerator = sum((x - mean_x) * (y - mean_y) for x, y in points)
-    denominator = sum((x - mean_x) ** 2 for x, _ in points)
-    if denominator == 0:
-        return None
-    return numerator / denominator
-
-
 class SunSolarCoordinator(DataUpdateCoordinator[SunSolarData]):
-    """Samples the SOC entity every UPDATE_INTERVAL_SECONDS and keeps a
-    rolling buffer used to compute the SOC-Steigung über die letzten
-    SOC_RATE_WINDOW_MINUTES Minuten.
-    """
+    """Maintain an independent rolling SOC history for a config entry."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self, hass: HomeAssistant, entry: ConfigEntry, settings: BatterySettings
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=DOMAIN,
-            update_interval=timedelta(seconds=UPDATE_INTERVAL_SECONDS),
+            update_interval=SAMPLE_INTERVAL,
+            always_update=False,
         )
-        self._entry = entry
-        # deque of (timestamp, soc_percent)
-        self._soc_samples: deque[tuple[datetime, float]] = deque()
+        self.settings = settings
+        self.aggregate_adders: dict[str, Callable[["AggregateForecast"], None]] = {}
+        self._samples: deque[tuple[datetime, float]] = deque()
+        self._full_since: datetime | None = None
+        self._window = timedelta(minutes=settings.window_minutes)
 
-    def _config(self, key: str) -> Any:
-        # Options override the initial data set at config_flow time,
-        # this is what makes the "Configure" GUI dialog actually take effect.
-        return self._entry.options.get(key, self._entry.data.get(key))
+    @callback
+    def async_watch_inputs(self) -> Callable[[], None]:
+        """Refresh immediately when daylight or the source changes."""
+        return async_track_state_change_event(
+            self.hass,
+            [self.settings.entity_id, SUN_ENTITY_ID],
+            self._async_input_changed,
+        )
 
-    def _read_soc(self) -> float | None:
-        entity_id = self._config(CONF_BATTERY_SOC_ENTITY)
-        state = self.hass.states.get(entity_id)
-        if state is None or state.state in _UNUSABLE_STATES:
-            return None
-        return _to_float(state.state)
+    @callback
+    def _async_input_changed(self, _event: Event[EventStateChangedData]) -> None:
+        data = self._sample()
+        if data != self.data or not self.last_update_success:
+            self.async_set_updated_data(data)
 
-    def _next_sunset(self) -> datetime | None:
-        """Liest sun.sun next_setting - fixe Core-Entity, keine Konfiguration nötig."""
-        sun_state = self.hass.states.get(SUN_ENTITY_ID)
-        if sun_state is None:
-            return None
-        next_setting = sun_state.attributes.get("next_setting")
-        if next_setting is None:
-            return None
-        return dt_util.parse_datetime(next_setting)
+    async def _async_setup(self) -> None:
+        """Seed recent daylight samples from Recorder when enabled."""
+        if not self.settings.use_recorder:
+            return
+        now = dt_util.utcnow()
+        sun = self.hass.states.get(SUN_ENTITY_ID)
+        if sun is None or sun.state != "above_horizon":
+            return
+        sunrise = get_astral_event_date(self.hass, SUN_EVENT_SUNRISE, now)
+        if sunrise is None or sunrise >= now:
+            return
 
-    def _prune_samples(self, now: datetime) -> None:
-        cutoff = now - timedelta(minutes=SOC_RATE_WINDOW_MINUTES)
-        while self._soc_samples and self._soc_samples[0][0] < cutoff:
-            self._soc_samples.popleft()
+        # Import only when Recorder is loaded.
+        if "recorder" not in self.hass.config.components:
+            return
+        from homeassistant.components.recorder import get_instance
+        from homeassistant.components.recorder.history import get_significant_states
 
-    def _soc_rate_percent_per_min(self, now: datetime) -> tuple[float | None, int]:
-        """Returns (slope_percent_per_minute, sample_count)."""
-        if len(self._soc_samples) < 2:
-            return None, len(self._soc_samples)
-        points = [
-            ((t - now).total_seconds() / 60, soc) for t, soc in self._soc_samples
-        ]
-        slope = _linear_regression_slope(points)
-        return slope, len(self._soc_samples)
+        start = max(sunrise, now - self._window)
+        entity_id = self.settings.entity_id
+        try:
+            recorder = get_instance(self.hass)
+            if recorder.entity_filter is not None and not recorder.entity_filter(
+                entity_id
+            ):
+                return
+            async with asyncio.timeout(5):
+                history = await recorder.async_add_executor_job(
+                    partial(
+                        get_significant_states,
+                        self.hass,
+                        start,
+                        now,
+                        [entity_id],
+                        significant_changes_only=False,
+                    )
+                )
+            sample_time = start
+            value = None
+            for state in history.get(entity_id, ()):
+                while sample_time < min(state.last_updated, now):
+                    if value is not None:
+                        self._samples.append((sample_time, value))
+                    sample_time += SAMPLE_INTERVAL
+                value = read_soc(state)
+                if value is None:
+                    self._samples.clear()
+            # A stale history ending at a different SOC can create a false
+            # jump on startup. Collect live samples when the readings disagree.
+            if value is None or value != read_soc(self.hass.states.get(entity_id)):
+                self._samples.clear()
+                return
+            while sample_time < now:
+                self._samples.append((sample_time, value))
+                sample_time += SAMPLE_INTERVAL
+        except Exception:
+            self._samples.clear()
+            _LOGGER.debug(
+                "Recorder history unavailable; collecting live SOC", exc_info=True
+            )
 
     async def _async_update_data(self) -> SunSolarData:
+        return self._sample()
+
+    @callback
+    def _sample(self) -> SunSolarData:
         now = dt_util.utcnow()
-
-        soc = self._read_soc()
-        if soc is not None:
-            self._soc_samples.append((now, soc))
-        self._prune_samples(now)
-
-        if soc is None:
-            return SunSolarData(
-                eta=None,
-                status=STATUS_UNAVAILABLE,
-                soc_rate_percent_per_hour=None,
-                samples_in_window=len(self._soc_samples),
-            )
-
-        if soc >= SOC_FULL_THRESHOLD:
-            return SunSolarData(
-                eta=now,
-                status=STATUS_FULL,
-                soc_rate_percent_per_hour=0.0,
-                samples_in_window=len(self._soc_samples),
-            )
-
-        slope_per_min, sample_count = self._soc_rate_percent_per_min(now)
-
-        if slope_per_min is None or slope_per_min < MIN_SOC_RATE_PERCENT_PER_MIN:
-            return SunSolarData(
-                eta=None,
-                status=STATUS_NOT_CHARGING,
-                soc_rate_percent_per_hour=(
-                    slope_per_min * 60 if slope_per_min is not None else None
-                ),
-                samples_in_window=sample_count,
-            )
-
-        minutes_left = (100 - soc) / slope_per_min
-        if minutes_left <= 0 or minutes_left > 24 * 60:
-            return SunSolarData(
-                eta=None,
-                status=STATUS_CHARGING,
-                soc_rate_percent_per_hour=slope_per_min * 60,
-                samples_in_window=sample_count,
-            )
-
-        eta = now + timedelta(minutes=minutes_left)
-
-        sunset = self._next_sunset()
-        if sunset is not None and eta > sunset:
-            return SunSolarData(
-                eta=None,
-                status=STATUS_CHARGING_PAST_SUNSET,
-                soc_rate_percent_per_hour=slope_per_min * 60,
-                samples_in_window=sample_count,
-            )
-
-        return SunSolarData(
-            eta=eta,
-            status=STATUS_CHARGING,
-            soc_rate_percent_per_hour=slope_per_min * 60,
-            samples_in_window=sample_count,
+        soc = read_soc(self.hass.states.get(self.settings.entity_id))
+        sun = self.hass.states.get(SUN_ENTITY_ID)
+        daylight = sun is not None and sun.state == "above_horizon"
+        raw_sunset = sun.attributes.get("next_setting") if sun is not None else None
+        sunset = (
+            dt_util.parse_datetime(raw_sunset)
+            if isinstance(raw_sunset, str)
+            else raw_sunset
         )
+        if not isinstance(sunset, datetime) or sunset.utcoffset() is None:
+            sunset = None
+
+        if (
+            soc is None
+            or not daylight
+            or sunset is None
+            or sunset <= now
+            or (self._samples and now - self._samples[-1][0] > SAMPLE_INTERVAL * 3)
+        ):
+            self._samples.clear()
+
+        if soc is not None and daylight and sunset is not None and sunset > now:
+            if not self._samples or now - self._samples[-1][0] >= SAMPLE_INTERVAL:
+                self._samples.append((now, soc))
+
+        cutoff = now - self._window
+        while self._samples and self._samples[0][0] < cutoff:
+            self._samples.popleft()
+
+        threshold = self.settings.full_threshold
+        if soc is not None and soc >= threshold:
+            self._full_since = self._full_since or now
+        else:
+            self._full_since = None
+
+        rate = slope(
+            [((t - now).total_seconds() / 60, value) for t, value in self._samples]
+        )
+        result = forecast(
+            now=now,
+            soc=soc,
+            rate=rate,
+            sunset=sunset,
+            daylight=daylight,
+            threshold=threshold,
+            full_since=self._full_since,
+        )
+        if result.status != "full" and (
+            sun is None or sun.state not in ("above_horizon", "below_horizon")
+        ):
+            result = Forecast("unavailable")
+        return SunSolarData(
+            result, rate * 60 if rate is not None else None, len(self._samples)
+        )
+
+
+def read_soc(state: State | None) -> float | None:
+    """Read a percentage from a live or recorded state."""
+    if state is None or not is_soc_unit(state):
+        return None
+    return valid_soc(state.state)
